@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mission Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Spline+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -23,10 +23,46 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
 .pulse-dot{position:relative;width:18px;height:18px;flex:none;}
 .pulse-dot::before{content:'';position:absolute;inset:0;border-radius:50%;background:var(--c,#E8B04B);box-shadow:0 0 14px 3px var(--c,#E8B04B);}
 .pulse-dot::after{content:'';position:absolute;inset:0;border-radius:50%;border:2.5px solid var(--c,#E8B04B);animation:ping 2s ease-out infinite;}
-@media(max-width:600px){
-  #main-card{width:calc(100vw - 28px)!important;left:14px!important;}
-  #scrubber{width:calc(100vw - 28px)!important;padding:12px 14px!important;}
-  #scrubber .controls{flex-direction:column!important;gap:10px!important;}
+#card-toggle{display:none;}
+button{touch-action:manipulation;}
+/* ── Mobile: the map is the star, the card is a compact banner ── */
+@media(max-width:640px){
+  #main-card{
+    width:calc(100vw - 20px)!important;left:10px!important;
+    top:calc(8px + env(safe-area-inset-top))!important;
+    padding:12px 14px!important;border-radius:16px;
+  }
+  #main-card .serif#name-display{font-size:21px!important;margin-top:4px!important;}
+  #mission-display{display:none;}
+  #main-card>div:first-child{font-size:8.5px!important;}
+  #current-box{margin-top:10px!important;padding:10px 12px!important;}
+  #current-city{font-size:15px!important;}
+  /* Everything below "Currently in" collapses behind the More button */
+  #card-details{display:none;}
+  #main-card.expanded #card-details{display:block;}
+  #card-toggle{
+    display:block;width:100%;margin-top:10px;padding:9px;
+    border-radius:10px;border:1px solid rgba(214,188,140,0.22);
+    background:rgba(255,255,255,0.05);color:#C9A24B;cursor:pointer;
+    font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.08em;
+  }
+  /* Bottom bar: full-width, thumb-sized, above the home indicator */
+  #scrubber{
+    width:calc(100vw - 20px)!important;left:10px!important;transform:none!important;
+    bottom:calc(8px + env(safe-area-inset-bottom))!important;
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom)*0.3)!important;
+    border-radius:16px;
+  }
+  #scrubber .controls{gap:12px!important;}
+  #replay-label{display:none;}
+  #play-btn{width:58px!important;height:58px!important;font-size:21px!important;}
+  #scrub-date{font-size:14px!important;}
+  #scrub-city{font-size:10px!important;}
+  /* Pinch-zoom replaces the +/- buttons on phones */
+  .leaflet-control-zoom{display:none;}
+  /* Lightbox: bigger touch targets */
+  .lb-btn{padding:13px 18px;font-size:15px;}
+  #lightbox img{max-height:64vh;}
 }
 #lightbox{position:fixed;inset:0;z-index:50;display:none;background:rgba(5,4,2,0.93);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;}
 #lightbox img{max-width:92vw;max-height:76vh;border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,0.8);}
@@ -44,7 +80,7 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
     <div class="serif" id="name-display" style="font-size:34px;line-height:1.05;color:#F4ECDF;margin-top:10px;"></div>
     <div style="font-size:13px;color:#9A9080;margin-top:5px;" id="mission-display"></div>
 
-    <div style="margin-top:16px;padding:14px 15px;border-radius:14px;background:rgba(232,176,75,0.1);border:1px solid rgba(232,176,75,0.25);">
+    <div id="current-box" style="margin-top:16px;padding:14px 15px;border-radius:14px;background:rgba(232,176,75,0.1);border:1px solid rgba(232,176,75,0.25);">
       <div style="font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#C9A24B;margin-bottom:8px;">Currently In</div>
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="pulse-dot" style="--c:#E8B04B;"></div>
@@ -56,6 +92,8 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
       <div style="font:400 10px/1.4 'JetBrains Mono',monospace;color:#6E6860;margin-top:8px;" id="updated-line"></div>
     </div>
 
+    <button id="card-toggle" onclick="toggleCard()">MORE ▾</button>
+    <div id="card-details">
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
       <div style="position:relative;width:44px;height:44px;flex:none;">
         <canvas id="ring" width="44" height="44"></canvas>
@@ -87,6 +125,7 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
       <div style="font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#7C7466;margin-bottom:9px;">AirTag Status</div>
       <div id="bat-indicators" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
+    </div><!-- /card-details -->
   </div>
 
   <!-- SCRUBBER -->
@@ -94,7 +133,7 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
     <div class="controls" style="display:flex;align-items:center;gap:14px;">
       <button id="play-btn" onclick="togglePlay()" style="flex:none;width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;background:linear-gradient(158deg,#E8B04B,#C9842E);color:#1a1206;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(201,132,46,0.42);">▶</button>
       <div style="flex:1;">
-        <div style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#7C7466;margin-bottom:6px;">Replay Her Journey</div>
+        <div id="replay-label" style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#7C7466;margin-bottom:6px;">Replay Her Journey</div>
         <div style="position:relative;height:20px;">
           <div style="position:absolute;top:8px;left:0;right:0;height:4px;border-radius:3px;background:rgba(255,255,255,0.1);"></div>
           <div id="fill" style="position:absolute;top:8px;left:0;height:4px;border-radius:3px;background:linear-gradient(90deg,#C9842E,#E8B04B);box-shadow:0 0 10px rgba(232,176,75,0.5);width:0%;"></div>
@@ -106,6 +145,8 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
         <div class="serif" id="scrub-date" style="font-size:16px;color:#F4ECDF;white-space:nowrap;">—</div>
         <div style="font:400 11px/1.3 'Spline Sans',sans-serif;color:#8E8576;margin-top:2px;" id="scrub-city">—</div>
       </div>
+      <button onclick="goNow()" title="Jump to her latest position"
+        style="flex:none;padding:10px 13px;border-radius:11px;border:1px solid rgba(232,176,75,0.4);background:rgba(232,176,75,0.12);color:#E8B04B;cursor:pointer;font:600 11px 'JetBrains Mono',monospace;">⦿ NOW</button>
     </div>
   </div>
 
@@ -128,7 +169,7 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
       <div class="serif" style="font-size:26px;color:#F4ECDF;margin-top:12px;">Follow Her Journey</div>
       <div style="font:400 13px/1.5 'Spline Sans',sans-serif;color:#8E8576;margin-top:10px;">Enter the family password to open the live map. You only need to do this once on each device.</div>
       <input id="gate-pass" type="password" placeholder="Family password" autocomplete="current-password"
-        style="margin-top:18px;width:100%;padding:13px 14px;border-radius:12px;border:1px solid rgba(214,188,140,0.25);background:rgba(255,255,255,0.05);color:#F4ECDF;font:500 15px 'Spline Sans',sans-serif;outline:none;text-align:center;"
+        style="margin-top:18px;width:100%;padding:13px 14px;border-radius:12px;border:1px solid rgba(214,188,140,0.25);background:rgba(255,255,255,0.05);color:#F4ECDF;font:500 16px 'Spline Sans',sans-serif;outline:none;text-align:center;"
         onkeydown="if(event.key==='Enter')unlock()">
       <button onclick="unlock()" id="gate-btn"
         style="margin-top:14px;width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(158deg,#E8B04B,#C9842E);color:#1a1206;font:600 15px 'Spline Sans',sans-serif;">Open the Map</button>
@@ -170,7 +211,13 @@ async function decryptBinary(buf){
 }
 async function fetchJSON(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error(url+' → '+r.status);return r.json();}
 
+let booted=false,unlocking=false;
 async function unlock(){
+  if(booted||unlocking)return;
+  unlocking=true;
+  try{await doUnlock();}finally{unlocking=false;}
+}
+async function doUnlock(){
   const pass=document.getElementById('gate-pass').value;
   if(!pass){document.getElementById('gate-err').textContent='Type the family password first.';return;}
   document.getElementById('gate-btn').textContent='Unlocking…';
@@ -197,6 +244,7 @@ async function tryAutoUnlock(){
 }
 
 function bootFromPayload(payload){
+  if(booted)return;         // guard: auto-unlock + manual tap racing
   MISSION_DATA=payload.mission||{};
   MILESTONES=payload.milestones||[];
   SETTINGS=payload.settings||{};
@@ -209,6 +257,7 @@ function bootFromPayload(payload){
     document.getElementById('loading').innerHTML='<div style="font:500 14px \'Spline Sans\',sans-serif;color:#B9AE9C;">No journey data yet — check back soon!</div>';
     return;
   }
+  booted=true;
   init();
   startRefreshLoop();
 }
@@ -425,6 +474,17 @@ function loop(){
   },130/speed);
 }
 function scrub(v){clearTimeout(timer);playing=false;document.getElementById('play-btn').textContent='▶';idx=+v;render();}
+function goNow(){
+  clearTimeout(timer);playing=false;document.getElementById('play-btn').textContent='▶';
+  idx=frames.length-1;render();
+  const cur=frames[idx].person;
+  map.flyTo([cur.lat,cur.lng],10,{duration:1});
+}
+function toggleCard(){
+  const card=document.getElementById('main-card');
+  const open=card.classList.toggle('expanded');
+  document.getElementById('card-toggle').textContent=open?'LESS ▴':'MORE ▾';
+}
 
 // ── INIT ────────────────────────────────────────────
 function init(){
