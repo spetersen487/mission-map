@@ -20,9 +20,17 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
 .serif{font-family:'Newsreader',serif;}
 @keyframes ping{0%{transform:scale(1);opacity:.85}100%{transform:scale(3.5);opacity:0}}
 @keyframes spin{to{transform:rotate(360deg)}}
-.pulse-dot{position:relative;width:18px;height:18px;flex:none;}
-.pulse-dot::before{content:'';position:absolute;inset:0;border-radius:50%;background:var(--c,#E8B04B);box-shadow:0 0 14px 3px var(--c,#E8B04B);}
-.pulse-dot::after{content:'';position:absolute;inset:0;border-radius:50%;border:2.5px solid var(--c,#E8B04B);animation:ping 2s ease-out infinite;}
+/* iOS Safari: 100vh hides the bottom bar behind browser chrome — dvh tracks
+   the real visible viewport so the play bar is always on screen. */
+#wrap{height:100vh;height:100dvh;}
+/* Her marker: white ring + dark halo reads against any satellite terrain. */
+.pulse-dot{position:relative;width:24px;height:24px;flex:none;}
+.pulse-dot::before{content:'';position:absolute;inset:0;border-radius:50%;background:var(--c,#E8B04B);border:3.5px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,0.5),0 0 18px 5px var(--c,#E8B04B);}
+.pulse-dot::after{content:'';position:absolute;inset:-2px;border-radius:50%;border:3px solid #fff;animation:ping 2s ease-out infinite;}
+/* The small indicator inside the "Currently In" card keeps the subtle look */
+#current-box .pulse-dot{width:16px;height:16px;}
+#current-box .pulse-dot::before{border:2px solid #fff;box-shadow:0 0 12px 2px var(--c,#E8B04B);}
+#current-box .pulse-dot::after{inset:0;border-width:2px;border-color:var(--c,#E8B04B);}
 #card-toggle{display:none;}
 button{touch-action:manipulation;}
 /* ── Mobile: the map is the star, the card is a compact banner ── */
@@ -70,7 +78,7 @@ button{touch-action:manipulation;}
 </style>
 </head>
 <body>
-<div style="position:relative;width:100%;height:100vh;">
+<div id="wrap" style="position:relative;width:100%;height:100vh;">
   <div id="map"></div>
   <div style="position:absolute;left:14px;bottom:8px;z-index:2;font:400 9px/1.3 'JetBrains Mono',monospace;color:rgba(244,236,223,0.4);text-shadow:0 1px 2px #000;">Imagery © Esri, Maxar</div>
 
@@ -314,7 +322,7 @@ function derive(){
   for(let i=1;i<frames.length;i++)cum[i]=cum[i-1]+haversine(frames[i-1].person,frames[i].person);
 }
 function pulseIcon(c){
-  return L.divIcon({className:'',html:`<div class="pulse-dot" style="--c:${c}"></div>`,iconSize:[18,18],iconAnchor:[9,9]});
+  return L.divIcon({className:'',html:`<div class="pulse-dot" style="--c:${c}"></div>`,iconSize:[24,24],iconAnchor:[12,12]});
 }
 function initMap(){
   map=L.map('map',{zoomControl:false,attributionControl:false,worldCopyJump:true,minZoom:2,maxZoom:17});
@@ -323,7 +331,7 @@ function initMap(){
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:17,opacity:0.85}).addTo(map);
   glow=L.polyline([],{color:TRAIL_COLOR,weight:9,opacity:0.16,lineCap:'round',lineJoin:'round'}).addTo(map);
   trail=L.polyline([],{color:TRAIL_COLOR,weight:2.5,opacity:0.95,lineCap:'round',lineJoin:'round'}).addTo(map);
-  const lopt={radius:5,color:'#0d0b09',weight:1.5,fillColor:'#7FBFAE',fillOpacity:0.92};
+  const lopt={radius:6,color:'#fff',weight:2,fillColor:'#7FBFAE',fillOpacity:0.95};
   const f0=frames[0];
   lug1Marker=L.circleMarker([f0.lug_a.lat,f0.lug_a.lng],lopt).addTo(map);
   lug2Marker=L.circleMarker([f0.lug_b.lat,f0.lug_b.lng],lopt).addTo(map);
