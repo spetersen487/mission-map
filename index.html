@@ -78,7 +78,7 @@ button{touch-action:manipulation;}
 </style>
 </head>
 <body>
-<div id="wrap" style="position:relative;width:100%;height:100vh;">
+<div id="wrap" style="position:relative;width:100%;">
   <div id="map"></div>
   <div style="position:absolute;left:14px;bottom:8px;z-index:2;font:400 9px/1.3 'JetBrains Mono',monospace;color:rgba(244,236,223,0.4);text-shadow:0 1px 2px #000;">Imagery © Esri, Maxar</div>
 
@@ -91,7 +91,7 @@ button{touch-action:manipulation;}
     <div id="current-box" style="margin-top:16px;padding:14px 15px;border-radius:14px;background:rgba(232,176,75,0.1);border:1px solid rgba(232,176,75,0.25);">
       <div style="font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#C9A24B;margin-bottom:8px;">Currently In</div>
       <div style="display:flex;align-items:center;gap:10px;">
-        <div class="pulse-dot" style="--c:#E8B04B;"></div>
+        <div class="pulse-dot" style="--c:#E8382F;"></div>
         <div>
           <div style="font:600 16px/1.2 'Spline Sans',sans-serif;color:#F4ECDF;" id="current-city">—</div>
           <div style="font:400 11px/1.3 'Spline Sans',sans-serif;color:#8E8576;margin-top:3px;" id="current-date">—</div>
@@ -311,6 +311,7 @@ let idx=0;
 let playing=false,timer=null,speed=8;
 let cum=[0];
 let TRAIL_COLOR='#E8B04B',MISSIONARY='',MISSION_NAME='',TOTAL_DAYS=547;
+const MARKER_COLOR='#E8382F'; // her dot: red — highest contrast against terrain
 let photoMarkers=[];
 
 function haversine(a,b){
@@ -335,7 +336,7 @@ function initMap(){
   const f0=frames[0];
   lug1Marker=L.circleMarker([f0.lug_a.lat,f0.lug_a.lng],lopt).addTo(map);
   lug2Marker=L.circleMarker([f0.lug_b.lat,f0.lug_b.lng],lopt).addTo(map);
-  personMarker=L.marker([f0.person.lat,f0.person.lng],{icon:pulseIcon(TRAIL_COLOR),zIndexOffset:1000}).addTo(map);
+  personMarker=L.marker([f0.person.lat,f0.person.lng],{icon:pulseIcon(MARKER_COLOR),zIndexOffset:1000}).addTo(map);
   MILESTONES.forEach(m=>{
     const t=new Date((m.date||'2024-01-01')+'T12:00:00').getTime();
     let lat=m.lat,lng=m.lng;
