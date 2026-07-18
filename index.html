@@ -72,6 +72,34 @@ button{touch-action:manipulation;}
   .lb-btn{padding:13px 18px;font-size:15px;}
   #lightbox img{max-height:64vh;}
 }
+#photos-btn{
+  position:absolute;top:20px;right:20px;z-index:5;
+  padding:13px 20px;border-radius:999px;border:1px solid rgba(232,176,75,0.5);
+  background:rgba(20,15,9,0.88);backdrop-filter:blur(14px);color:#E8B04B;
+  font:600 14px 'Spline Sans',sans-serif;cursor:pointer;
+  box-shadow:0 8px 26px rgba(0,0,0,0.5);
+}
+#gallery{position:fixed;inset:0;z-index:40;display:none;background:#0d0b09;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+#gallery.open{display:block;}
+#gallery-head{
+  position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;
+  padding:calc(14px + env(safe-area-inset-top)) 18px 14px;
+  background:rgba(13,11,9,0.94);backdrop-filter:blur(14px);border-bottom:1px solid rgba(214,188,140,0.15);
+}
+#gallery-body{padding:14px 14px calc(30px + env(safe-area-inset-bottom));max-width:1000px;margin:0 auto;}
+.gal-sec{margin-bottom:26px;}
+.gal-place{font:600 17px/1.3 'Spline Sans',sans-serif;color:#F4ECDF;}
+.gal-date{font:400 12px/1.4 'JetBrains Mono',monospace;color:#8E8576;margin-top:3px;margin-bottom:10px;}
+.gal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.gal-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;background:rgba(255,255,255,0.05);cursor:pointer;border:1px solid rgba(214,188,140,0.12);}
+@media(max-width:640px){
+  .gal-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  #photos-btn{
+    top:auto;right:14px;
+    bottom:calc(112px + env(safe-area-inset-bottom));
+    padding:15px 22px;font-size:16px;
+  }
+}
 #lightbox{position:fixed;inset:0;z-index:50;display:none;background:rgba(5,4,2,0.93);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;}
 #lightbox img{max-width:92vw;max-height:76vh;border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,0.8);}
 .lb-btn{padding:10px 16px;border-radius:12px;border:1px solid rgba(214,188,140,0.25);background:rgba(255,255,255,0.06);color:#F4ECDF;cursor:pointer;font:500 14px 'Spline Sans',sans-serif;}
@@ -129,10 +157,6 @@ button{touch-action:manipulation;}
       </div>
     </div>
 
-    <div id="battery-bar" style="margin-top:14px;padding-top:13px;border-top:1px solid rgba(214,188,140,0.1);">
-      <div style="font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#7C7466;margin-bottom:9px;">AirTag Status</div>
-      <div id="bat-indicators" style="display:flex;flex-direction:column;gap:6px;"></div>
-    </div>
     </div><!-- /card-details -->
   </div>
 
@@ -156,6 +180,18 @@ button{touch-action:manipulation;}
       <button onclick="goNow()" title="Jump to her latest position"
         style="flex:none;padding:10px 13px;border-radius:11px;border:1px solid rgba(232,176,75,0.4);background:rgba(232,176,75,0.12);color:#E8B04B;cursor:pointer;font:600 11px 'JetBrains Mono',monospace;">⦿ NOW</button>
     </div>
+  </div>
+
+  <!-- PHOTOS BUTTON (shown when photos exist) -->
+  <button id="photos-btn" onclick="openGallery()" style="display:none;">📷 Photos</button>
+
+  <!-- FULL-SCREEN PHOTO GALLERY -->
+  <div id="gallery">
+    <div id="gallery-head">
+      <div class="serif" style="font-size:22px;color:#F4ECDF;">Her Photos</div>
+      <button class="lb-btn" onclick="closeGallery()" style="font-size:16px;padding:12px 20px;">✕ Close</button>
+    </div>
+    <div id="gallery-body"></div>
   </div>
 
   <!-- PHOTO LIGHTBOX -->
@@ -287,6 +323,7 @@ function startRefreshLoop(){
         cum=[0];derive();
         if(wasAtEnd)idx=frames.length-1;else idx=Math.min(idx,frames.length-1);
         rebuildPhotoMarkers();
+        updatePhotosBtn();
         render();
       }
       updateFreshnessLine();
@@ -306,7 +343,7 @@ const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','De
 const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DAY=86400000;
 let frames=[];
-let map,trail,glow,personMarker,lug1Marker,lug2Marker;
+let map,trail,glow,personMarker;
 let idx=0;
 let playing=false,timer=null,speed=8;
 let cum=[0];
@@ -332,10 +369,7 @@ function initMap(){
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:17,opacity:0.85}).addTo(map);
   glow=L.polyline([],{color:TRAIL_COLOR,weight:9,opacity:0.16,lineCap:'round',lineJoin:'round'}).addTo(map);
   trail=L.polyline([],{color:TRAIL_COLOR,weight:2.5,opacity:0.95,lineCap:'round',lineJoin:'round'}).addTo(map);
-  const lopt={radius:6,color:'#fff',weight:2,fillColor:'#7FBFAE',fillOpacity:0.95};
   const f0=frames[0];
-  lug1Marker=L.circleMarker([f0.lug_a.lat,f0.lug_a.lng],lopt).addTo(map);
-  lug2Marker=L.circleMarker([f0.lug_b.lat,f0.lug_b.lng],lopt).addTo(map);
   personMarker=L.marker([f0.person.lat,f0.person.lng],{icon:pulseIcon(MARKER_COLOR),zIndexOffset:1000}).addTo(map);
   MILESTONES.forEach(m=>{
     const t=new Date((m.date||'2024-01-01')+'T12:00:00').getTime();
@@ -367,24 +401,80 @@ function rebuildPhotoMarkers(){
   });
 }
 let lbCluster=null,lbIdx=0,lbUrlCache={};
+// Shared decrypt-and-cache for gallery thumbs and the lightbox.
+async function photoUrl(path){
+  const info=PHOTO_MAP[path];
+  if(!info)return null;
+  if(!lbUrlCache[info.enc]){
+    const buf=await fetch(info.enc,{cache:'force-cache'}).then(r=>r.arrayBuffer());
+    const pt=await decryptBinary(buf);
+    lbUrlCache[info.enc]=URL.createObjectURL(new Blob([pt],{type:info.mime||'image/jpeg'}));
+  }
+  return lbUrlCache[info.enc];
+}
+
+// ── FULL-SCREEN GALLERY (the grandma-friendly photo front door) ──
+function fmtGalDate(t){if(!t)return'';const d=new Date(t);return MON[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();}
+function galleryClusters(){
+  return CLUSTERS.filter(c=>c.photos&&c.photos.length)
+    .map(c=>({...c,newest:Math.max(...c.photos.map(p=>p.t||0))}))
+    .sort((a,b)=>b.newest-a.newest);
+}
+function updatePhotosBtn(){
+  const total=CLUSTERS.reduce((n,c)=>n+((c.photos||[]).length),0);
+  const btn=document.getElementById('photos-btn');
+  btn.style.display=total?'block':'none';
+  btn.textContent=`📷 Photos (${total})`;
+}
+function openGallery(){
+  const secs=galleryClusters();
+  const body=document.getElementById('gallery-body');
+  body.innerHTML=secs.map((c,ci)=>{
+    const dates=c.photos.map(p=>p.t).filter(Boolean).sort();
+    const range=dates.length?(fmtGalDate(dates[0])+(dates.length>1&&fmtGalDate(dates[0])!==fmtGalDate(dates[dates.length-1])?' – '+fmtGalDate(dates[dates.length-1]):'')):'';
+    return `<div class="gal-sec">
+      <div class="gal-place">📍 ${c.label||'Photos'}</div>
+      <div class="gal-date">${range}</div>
+      <div class="gal-grid">${c.photos.map((p,pi)=>
+        `<img alt="photo" loading="lazy" data-path="${p.path}" onclick="galOpen(${ci},${pi})">`).join('')}</div>
+    </div>`;
+  }).join('')||'<div style="text-align:center;color:#8E8576;padding:50px 20px;font:400 15px \'Spline Sans\',sans-serif;">No photos yet — they\'ll appear here as she shares them.</div>';
+  document.getElementById('gallery').classList.add('open');
+  galFillThumbs();
+}
+let galFilling=false;
+async function galFillThumbs(){
+  if(galFilling)return;
+  galFilling=true;
+  try{
+    const imgs=[...document.querySelectorAll('#gallery-body img[data-path]')];
+    // Decrypt a few at a time so the page stays responsive on an old phone.
+    for(let i=0;i<imgs.length;i+=3){
+      await Promise.all(imgs.slice(i,i+3).map(async im=>{
+        try{const u=await photoUrl(im.dataset.path);if(u)im.src=u;}catch(e){}
+      }));
+      if(!document.getElementById('gallery').classList.contains('open'))break;
+    }
+  }finally{galFilling=false;}
+}
+function galOpen(ci,pi){
+  const c=galleryClusters()[ci];
+  if(c)openLightbox(c,pi);
+}
+function closeGallery(){document.getElementById('gallery').classList.remove('open');}
 async function lbLoad(){
   const p=lbCluster.photos[lbIdx];
   const img=document.getElementById('lb-img');
   document.getElementById('lb-count').textContent=(lbIdx+1)+' / '+lbCluster.photos.length;
   img.style.opacity='0.3';
-  const encName=PHOTO_MAP[p.path]&&PHOTO_MAP[p.path].enc;
-  if(!encName){img.alt='Photo unavailable';img.style.opacity='1';return;}
-  if(!lbUrlCache[encName]){
-    try{
-      const buf=await fetch(encName,{cache:'force-cache'}).then(r=>r.arrayBuffer());
-      const pt=await decryptBinary(buf);
-      lbUrlCache[encName]=URL.createObjectURL(new Blob([pt],{type:(PHOTO_MAP[p.path].mime)||'image/jpeg'}));
-    }catch(e){console.warn('photo decrypt failed',e);img.style.opacity='1';return;}
-  }
-  img.src=lbUrlCache[encName];img.style.opacity='1';
+  try{
+    const u=await photoUrl(p.path);
+    if(u)img.src=u;else img.alt='Photo unavailable';
+  }catch(e){console.warn('photo decrypt failed',e);}
+  img.style.opacity='1';
 }
-function openLightbox(c){
-  lbCluster=c;lbIdx=0;
+function openLightbox(c,startIdx){
+  lbCluster=c;lbIdx=startIdx||0;
   document.getElementById('lb-title').textContent=c.label||'Photos';
   document.getElementById('lightbox').style.display='flex';
   lbLoad();
@@ -396,10 +486,11 @@ function lbStep(d){
 }
 function closeLightbox(){document.getElementById('lightbox').style.display='none';}
 document.addEventListener('keydown',e=>{
-  if(document.getElementById('lightbox').style.display!=='flex')return;
-  if(e.key==='Escape')closeLightbox();
-  if(e.key==='ArrowLeft')lbStep(-1);
-  if(e.key==='ArrowRight')lbStep(1);
+  if(document.getElementById('lightbox').style.display==='flex'){
+    if(e.key==='Escape')closeLightbox();
+    if(e.key==='ArrowLeft')lbStep(-1);
+    if(e.key==='ArrowRight')lbStep(1);
+  }else if(e.key==='Escape')closeGallery();
 });
 
 // ── RENDER ──────────────────────────────────────────
@@ -409,8 +500,6 @@ function render(){
   const pts=[];for(let k=0;k<=idx;k++)pts.push([frames[k].person.lat,frames[k].person.lng]);
   trail.setLatLngs(pts);glow.setLatLngs(pts);
   personMarker.setLatLng([f.person.lat,f.person.lng]);
-  lug1Marker.setLatLng([f.lug_a.lat,f.lug_a.lng]);
-  lug2Marker.setLatLng([f.lug_b.lat,f.lug_b.lng]);
   const pct=idx/Math.max(1,N-1)*100;
   document.getElementById('fill').style.width=pct+'%';
   document.getElementById('thumb').style.left=pct+'%';
@@ -438,7 +527,6 @@ function updateStats(f,dt,dateStr){
   document.getElementById('progress-label').textContent=prog+'% of mission complete';
   const rem=Math.max(0,TOTAL_DAYS-dayNum);
   document.getElementById('progress-sub').textContent=rem>0?rem+' days remaining':'Mission complete!';
-  renderBattery(f.bat);
 }
 function drawRing(pct){
   const c=document.getElementById('ring'),ctx=c.getContext('2d'),s=44,r=18,cx=22,cy=22;
@@ -448,24 +536,6 @@ function drawRing(pct){
   ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,end);ctx.strokeStyle=TRAIL_COLOR;ctx.lineWidth=3.5;ctx.lineCap='round';ctx.stroke();
   ctx.fillStyle='#F4ECDF';ctx.font='bold 8px JetBrains Mono,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText(pct+'%',cx,cy);
-}
-function renderBattery(bat){
-  const BAT_PCT={0:100,1:100,2:60,3:25,4:10};
-  const tags=[
-    {label:'On-Person',pct:bat.p!=null?bat.p:BAT_PCT[bat.p_raw]||100},
-    {label:'Luggage A', pct:bat.a!=null?bat.a:BAT_PCT[bat.a_raw]||100},
-    {label:'Luggage B', pct:bat.b!=null?bat.b:BAT_PCT[bat.b_raw]||100},
-  ];
-  document.getElementById('bat-indicators').innerHTML=tags.map(t=>{
-    const p=Math.max(2,Math.round(t.pct));
-    const color=p<15?'#E2674E':p<30?'#E8B04B':'#9BC27E';
-    const msg=p<15?'⚠ Needs a new battery':p<30?'Getting low':'Good';
-    return `<div style="display:flex;align-items:center;gap:8px;">
-      <span style="font:500 12px/1 'Spline Sans',sans-serif;color:#B9AE9C;width:72px;">${t.label}</span>
-      <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);"><div style="height:100%;border-radius:2px;width:${p}%;background:${color};"></div></div>
-      <span style="font:500 10px/1 'Spline Sans',sans-serif;color:${color};width:110px;">${msg}</span>
-    </div>`;
-  }).join('');
 }
 
 // ── PLAYBACK ────────────────────────────────────────
@@ -509,6 +579,7 @@ function init(){
   idx=frames.length-1;
   document.getElementById('main-card').style.display='block';
   document.getElementById('scrubber').style.display='block';
+  updatePhotosBtn();
   render();
   const cur=frames[idx].person;
   const zoom=cur.city&&cur.city.indexOf('transit')>-1?4:10;
