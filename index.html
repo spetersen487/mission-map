@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mission Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Spline+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:#0d0b09;}
+body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
+#map{position:absolute;inset:0;z-index:0;background:#0d0b09;}
+.leaflet-container{background:#0d0b09!important;}
+.leaflet-tile{filter:saturate(1.06)contrast(1.03)brightness(0.96);}
+.card{background:rgba(20,15,9,0.82);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(214,188,140,0.18);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.6);}
+.mono{font-family:'JetBrains Mono',monospace;}
+.serif{font-family:'Newsreader',serif;}
+@keyframes ping{0%{transform:scale(1);opacity:.85}100%{transform:scale(3.5);opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pulse-dot{position:relative;width:18px;height:18px;flex:none;}
+.pulse-dot::before{content:'';position:absolute;inset:0;border-radius:50%;background:var(--c,#E8B04B);box-shadow:0 0 14px 3px var(--c,#E8B04B);}
+.pulse-dot::after{content:'';position:absolute;inset:0;border-radius:50%;border:2.5px solid var(--c,#E8B04B);animation:ping 2s ease-out infinite;}
+@media(max-width:600px){
+  #main-card{width:calc(100vw - 28px)!important;left:14px!important;}
+  #scrubber{width:calc(100vw - 28px)!important;padding:12px 14px!important;}
+  #scrubber .controls{flex-direction:column!important;gap:10px!important;}
+}
+#lightbox{position:fixed;inset:0;z-index:50;display:none;background:rgba(5,4,2,0.93);backdrop-filter:blur(8px);flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;}
+#lightbox img{max-width:92vw;max-height:76vh;border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,0.8);}
+.lb-btn{padding:10px 16px;border-radius:12px;border:1px solid rgba(214,188,140,0.25);background:rgba(255,255,255,0.06);color:#F4ECDF;cursor:pointer;font:500 14px 'Spline Sans',sans-serif;}
+</style>
+</head>
+<body>
+<div style="position:relative;width:100%;height:100vh;">
+  <div id="map"></div>
+  <div style="position:absolute;left:14px;bottom:8px;z-index:2;font:400 9px/1.3 'JetBrains Mono',monospace;color:rgba(244,236,223,0.4);text-shadow:0 1px 2px #000;">Imagery © Esri, Maxar</div>
+
+  <!-- MAIN CARD -->
+  <div id="main-card" class="card" style="position:absolute;top:20px;left:20px;z-index:4;width:320px;padding:20px 22px;display:none;">
+    <div style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.2em;text-transform:uppercase;color:#C9A24B;">Following Her Mission ✦</div>
+    <div class="serif" id="name-display" style="font-size:34px;line-height:1.05;color:#F4ECDF;margin-top:10px;"></div>
+    <div style="font-size:13px;color:#9A9080;margin-top:5px;" id="mission-display"></div>
+
+    <div style="margin-top:16px;padding:14px 15px;border-radius:14px;background:rgba(232,176,75,0.1);border:1px solid rgba(232,176,75,0.25);">
+      <div style="font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#C9A24B;margin-bottom:8px;">Currently In</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="pulse-dot" style="--c:#E8B04B;"></div>
+        <div>
+          <div style="font:600 16px/1.2 'Spline Sans',sans-serif;color:#F4ECDF;" id="current-city">—</div>
+          <div style="font:400 11px/1.3 'Spline Sans',sans-serif;color:#8E8576;margin-top:3px;" id="current-date">—</div>
+        </div>
+      </div>
+      <div style="font:400 10px/1.4 'JetBrains Mono',monospace;color:#6E6860;margin-top:8px;" id="updated-line"></div>
+    </div>
+
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+      <div style="position:relative;width:44px;height:44px;flex:none;">
+        <canvas id="ring" width="44" height="44"></canvas>
+      </div>
+      <div style="flex:1;">
+        <div style="font:600 13px/1.2 'Spline Sans',sans-serif;color:#F4ECDF;" id="progress-label">0% of mission complete</div>
+        <div style="font:400 11px/1.3 'Spline Sans',sans-serif;color:#8E8576;margin-top:3px;" id="progress-sub"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:0;margin-top:14px;padding-top:14px;border-top:1px solid rgba(214,188,140,0.1);">
+      <div style="flex:1;text-align:center;">
+        <div class="mono" style="font-size:20px;font-weight:600;color:#F4ECDF;" id="stat-miles">—</div>
+        <div class="mono" style="font-size:8.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6E6860;margin-top:4px;">miles</div>
+      </div>
+      <div style="width:1px;background:rgba(214,188,140,0.1);"></div>
+      <div style="flex:1;text-align:center;">
+        <div class="mono" style="font-size:20px;font-weight:600;color:#F4ECDF;" id="stat-cities">—</div>
+        <div class="mono" style="font-size:8.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6E6860;margin-top:4px;">cities</div>
+      </div>
+      <div style="width:1px;background:rgba(214,188,140,0.1);"></div>
+      <div style="flex:1;text-align:center;">
+        <div class="mono" style="font-size:20px;font-weight:600;color:#F4ECDF;" id="stat-days">—</div>
+        <div class="mono" style="font-size:8.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6E6860;margin-top:4px;">days in</div>
+      </div>
+    </div>
+
+    <div id="battery-bar" style="margin-top:14px;padding-top:13px;border-top:1px solid rgba(214,188,140,0.1);">
+      <div style="font:600 9.5px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#7C7466;margin-bottom:9px;">AirTag Status</div>
+      <div id="bat-indicators" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+  </div>
+
+  <!-- SCRUBBER -->
+  <div id="scrubber" class="card" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:4;width:min(700px,calc(100vw - 28px));padding:14px 18px;border-radius:18px;display:none;">
+    <div class="controls" style="display:flex;align-items:center;gap:14px;">
+      <button id="play-btn" onclick="togglePlay()" style="flex:none;width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;background:linear-gradient(158deg,#E8B04B,#C9842E);color:#1a1206;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(201,132,46,0.42);">▶</button>
+      <div style="flex:1;">
+        <div style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:#7C7466;margin-bottom:6px;">Replay Her Journey</div>
+        <div style="position:relative;height:20px;">
+          <div style="position:absolute;top:8px;left:0;right:0;height:4px;border-radius:3px;background:rgba(255,255,255,0.1);"></div>
+          <div id="fill" style="position:absolute;top:8px;left:0;height:4px;border-radius:3px;background:linear-gradient(90deg,#C9842E,#E8B04B);box-shadow:0 0 10px rgba(232,176,75,0.5);width:0%;"></div>
+          <div id="thumb" style="position:absolute;top:10px;width:12px;height:12px;border-radius:50%;background:#F8F1E2;border:2px solid #E8B04B;transform:translate(-50%,-50%);pointer-events:none;left:0%;"></div>
+          <input type="range" min="0" max="100" value="0" oninput="scrub(+this.value)" style="-webkit-appearance:none;appearance:none;position:absolute;inset:0;width:100%;height:100%;margin:0;background:transparent;cursor:pointer;opacity:0;z-index:3;">
+        </div>
+      </div>
+      <div style="flex:none;text-align:right;">
+        <div class="serif" id="scrub-date" style="font-size:16px;color:#F4ECDF;white-space:nowrap;">—</div>
+        <div style="font:400 11px/1.3 'Spline Sans',sans-serif;color:#8E8576;margin-top:2px;" id="scrub-city">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHOTO LIGHTBOX -->
+  <div id="lightbox" onclick="if(event.target===this)closeLightbox()">
+    <div class="serif" id="lb-title" style="font-size:20px;color:#F4ECDF;"></div>
+    <img id="lb-img" alt="">
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button class="lb-btn" onclick="lbStep(-1)">‹ Prev</button>
+      <span class="mono" id="lb-count" style="color:#8E8576;font-size:12px;"></span>
+      <button class="lb-btn" onclick="lbStep(1)">Next ›</button>
+      <button class="lb-btn" onclick="closeLightbox()">Close ✕</button>
+    </div>
+  </div>
+
+  <!-- UNLOCK GATE -->
+  <div id="gate" style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0d0b09;gap:0;padding:24px;">
+    <div class="card" style="width:min(400px,92vw);padding:32px 30px;text-align:center;">
+      <div style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.2em;text-transform:uppercase;color:#C9A24B;">Mission Tracker ✦</div>
+      <div class="serif" style="font-size:26px;color:#F4ECDF;margin-top:12px;">Follow Her Journey</div>
+      <div style="font:400 13px/1.5 'Spline Sans',sans-serif;color:#8E8576;margin-top:10px;">Enter the family password to open the live map. You only need to do this once on each device.</div>
+      <input id="gate-pass" type="password" placeholder="Family password" autocomplete="current-password"
+        style="margin-top:18px;width:100%;padding:13px 14px;border-radius:12px;border:1px solid rgba(214,188,140,0.25);background:rgba(255,255,255,0.05);color:#F4ECDF;font:500 15px 'Spline Sans',sans-serif;outline:none;text-align:center;"
+        onkeydown="if(event.key==='Enter')unlock()">
+      <button onclick="unlock()" id="gate-btn"
+        style="margin-top:14px;width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(158deg,#E8B04B,#C9842E);color:#1a1206;font:600 15px 'Spline Sans',sans-serif;">Open the Map</button>
+      <div id="gate-err" style="font:400 12px/1.4 'Spline Sans',sans-serif;color:#E2674E;margin-top:12px;min-height:16px;"></div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div id="loading" style="position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;background:#0d0b09;color:#B9AE9C;gap:16px;">
+    <div style="width:38px;height:38px;border-radius:50%;border:3px solid rgba(232,176,75,0.2);border-top-color:#E8B04B;animation:spin 0.9s linear infinite;"></div>
+    <div style="font:500 14px/1 'Spline Sans',sans-serif;letter-spacing:0.02em;">Loading her journey…</div>
+  </div>
+</div>
+
+<script>
+// ── ENCRYPTED DATA LOADING ──────────────────────────
+// The published data.enc / photos/*.enc are AES-256-GCM encrypted. The key is
+// derived from the family password with PBKDF2 (salt + iterations in meta.json).
+// Nothing sensitive lives in this file — it's just the viewer shell.
+let cryptoKey=null, META=null;
+let MISSION_DATA={}, MILESTONES=[], SETTINGS={}, CLUSTERS=[], PHOTO_MAP={};
+
+const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+
+async function deriveKey(pass,saltB64,iter){
+  const mat=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2',salt:b64d(saltB64),iterations:iter,hash:'SHA-256'},
+    mat,{name:'AES-GCM',length:256},false,['decrypt']);
+}
+async function decryptJSON(obj){
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(obj.iv)},cryptoKey,b64d(obj.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function decryptBinary(buf){
+  const bytes=new Uint8Array(buf);
+  const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12)},cryptoKey,bytes.slice(12));
+  return pt;
+}
+async function fetchJSON(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error(url+' → '+r.status);return r.json();}
+
+async function unlock(){
+  const pass=document.getElementById('gate-pass').value;
+  if(!pass){document.getElementById('gate-err').textContent='Type the family password first.';return;}
+  document.getElementById('gate-btn').textContent='Unlocking…';
+  document.getElementById('gate-err').textContent='';
+  try{
+    META=META||await fetchJSON('meta.json');
+    cryptoKey=await deriveKey(pass,META.salt,META.iter||250000);
+    const payload=await decryptJSON(await fetchJSON('data.enc'));
+    localStorage.setItem('mt_fam_pass',pass);
+    bootFromPayload(payload);
+  }catch(e){
+    console.warn(e);
+    cryptoKey=null;
+    document.getElementById('gate-btn').textContent='Open the Map';
+    document.getElementById('gate-err').textContent='That password didn’t work — check with the family for the right one.';
+  }
+}
+
+async function tryAutoUnlock(){
+  const saved=localStorage.getItem('mt_fam_pass');
+  if(!saved)return;
+  document.getElementById('gate-pass').value=saved;
+  await unlock();
+}
+
+function bootFromPayload(payload){
+  MISSION_DATA=payload.mission||{};
+  MILESTONES=payload.milestones||[];
+  SETTINGS=payload.settings||{};
+  CLUSTERS=payload.clusters||[];
+  PHOTO_MAP=payload.photoMap||{};
+  document.getElementById('gate').style.display='none';
+  document.getElementById('loading').style.display='flex';
+  frames=MISSION_DATA.frames||[];
+  if(!frames.length){
+    document.getElementById('loading').innerHTML='<div style="font:500 14px \'Spline Sans\',sans-serif;color:#B9AE9C;">No journey data yet — check back soon!</div>';
+    return;
+  }
+  init();
+  startRefreshLoop();
+}
+
+// Poll meta.json; when the publisher stamps a new update, refetch + re-render.
+let lastUpdated=null;
+function startRefreshLoop(){
+  lastUpdated=META&&META.updated;
+  setInterval(async()=>{
+    try{
+      const m=await fetchJSON('meta.json');
+      if(m.updated&&m.updated!==lastUpdated){
+        lastUpdated=m.updated;META=m;
+        const payload=await decryptJSON(await fetchJSON('data.enc'));
+        const wasAtEnd=idx>=frames.length-1;
+        MISSION_DATA=payload.mission||{};MILESTONES=payload.milestones||[];
+        SETTINGS=payload.settings||{};CLUSTERS=payload.clusters||[];PHOTO_MAP=payload.photoMap||{};
+        frames=MISSION_DATA.frames||[];
+        cum=[0];derive();
+        if(wasAtEnd)idx=frames.length-1;else idx=Math.min(idx,frames.length-1);
+        rebuildPhotoMarkers();
+        render();
+      }
+      updateFreshnessLine();
+    }catch(e){/* offline — try again next tick */}
+  },10*60*1000);
+}
+function updateFreshnessLine(){
+  const el=document.getElementById('updated-line');
+  if(!el||!frames.length)return;
+  const ageMin=Math.round((Date.now()-frames[frames.length-1].t)/60000);
+  const nice=ageMin<2?'just now':ageMin<60?ageMin+' min ago':ageMin<2880?Math.round(ageMin/60)+' h ago':Math.round(ageMin/1440)+' days ago';
+  el.textContent='Last signal: '+nice;
+}
+
+// ── ORIGINAL VIEWER (unchanged rendering core) ──────
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WD=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAY=86400000;
+let frames=[];
+let map,trail,glow,personMarker,lug1Marker,lug2Marker;
+let idx=0;
+let playing=false,timer=null,speed=8;
+let cum=[0];
+let TRAIL_COLOR='#E8B04B',MISSIONARY='',MISSION_NAME='',TOTAL_DAYS=547;
+let photoMarkers=[];
+
+function haversine(a,b){
+  const R=3959,r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r;
+  const h=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function derive(){
+  for(let i=1;i<frames.length;i++)cum[i]=cum[i-1]+haversine(frames[i-1].person,frames[i].person);
+}
+function pulseIcon(c){
+  return L.divIcon({className:'',html:`<div class="pulse-dot" style="--c:${c}"></div>`,iconSize:[18,18],iconAnchor:[9,9]});
+}
+function initMap(){
+  map=L.map('map',{zoomControl:false,attributionControl:false,worldCopyJump:true,minZoom:2,maxZoom:17});
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:17}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:17,opacity:0.85}).addTo(map);
+  glow=L.polyline([],{color:TRAIL_COLOR,weight:9,opacity:0.16,lineCap:'round',lineJoin:'round'}).addTo(map);
+  trail=L.polyline([],{color:TRAIL_COLOR,weight:2.5,opacity:0.95,lineCap:'round',lineJoin:'round'}).addTo(map);
+  const lopt={radius:5,color:'#0d0b09',weight:1.5,fillColor:'#7FBFAE',fillOpacity:0.92};
+  const f0=frames[0];
+  lug1Marker=L.circleMarker([f0.lug_a.lat,f0.lug_a.lng],lopt).addTo(map);
+  lug2Marker=L.circleMarker([f0.lug_b.lat,f0.lug_b.lng],lopt).addTo(map);
+  personMarker=L.marker([f0.person.lat,f0.person.lng],{icon:pulseIcon(TRAIL_COLOR),zIndexOffset:1000}).addTo(map);
+  MILESTONES.forEach(m=>{
+    const t=new Date((m.date||'2024-01-01')+'T12:00:00').getTime();
+    let lat=m.lat,lng=m.lng;
+    if(lat==null){const fi=frameForTime(t);lat=frames[fi].person.lat;lng=frames[fi].person.lng;}
+    L.marker([lat,lng],{icon:L.divIcon({className:'',html:`<div style="font-size:18px;line-height:1;filter:drop-shadow(0 1px 4px rgba(0,0,0,.9));">${m.emoji||'✦'}</div>`,iconSize:[20,20],iconAnchor:[10,10]}),zIndexOffset:900})
+      .bindTooltip(`<b>${m.emoji||''}</b> ${m.label}`,{direction:'top',offset:[0,-8]}).addTo(map);
+  });
+  rebuildPhotoMarkers();
+}
+function frameForTime(t){
+  let lo=0,hi=frames.length-1;
+  while(lo<hi){const mid=(lo+hi)>>1;if(frames[mid].t<t)lo=mid+1;else hi=mid;}
+  return lo;
+}
+
+// ── PHOTO PINS + LIGHTBOX ───────────────────────────
+function rebuildPhotoMarkers(){
+  photoMarkers.forEach(m=>map.removeLayer(m));photoMarkers=[];
+  if(!map)return;
+  CLUSTERS.forEach(c=>{
+    if(c.lat==null||!c.photos||!c.photos.length)return;
+    const mk=L.marker([c.lat,c.lng],{icon:L.divIcon({className:'',
+      html:`<div style="width:30px;height:30px;border-radius:50%;background:rgba(20,15,9,0.9);border:2px solid rgba(232,176,75,0.85);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,0.7);">📷</div>`,
+      iconSize:[30,30],iconAnchor:[15,15]}),zIndexOffset:800})
+      .bindTooltip(`${c.label||'Photos'} · ${c.photos.length} photo${c.photos.length===1?'':'s'}`,{direction:'top',offset:[0,-12]})
+      .on('click',()=>openLightbox(c));
+    mk.addTo(map);photoMarkers.push(mk);
+  });
+}
+let lbCluster=null,lbIdx=0,lbUrlCache={};
+async function lbLoad(){
+  const p=lbCluster.photos[lbIdx];
+  const img=document.getElementById('lb-img');
+  document.getElementById('lb-count').textContent=(lbIdx+1)+' / '+lbCluster.photos.length;
+  img.style.opacity='0.3';
+  const encName=PHOTO_MAP[p.path]&&PHOTO_MAP[p.path].enc;
+  if(!encName){img.alt='Photo unavailable';img.style.opacity='1';return;}
+  if(!lbUrlCache[encName]){
+    try{
+      const buf=await fetch(encName,{cache:'force-cache'}).then(r=>r.arrayBuffer());
+      const pt=await decryptBinary(buf);
+      lbUrlCache[encName]=URL.createObjectURL(new Blob([pt],{type:(PHOTO_MAP[p.path].mime)||'image/jpeg'}));
+    }catch(e){console.warn('photo decrypt failed',e);img.style.opacity='1';return;}
+  }
+  img.src=lbUrlCache[encName];img.style.opacity='1';
+}
+function openLightbox(c){
+  lbCluster=c;lbIdx=0;
+  document.getElementById('lb-title').textContent=c.label||'Photos';
+  document.getElementById('lightbox').style.display='flex';
+  lbLoad();
+}
+function lbStep(d){
+  if(!lbCluster)return;
+  lbIdx=(lbIdx+d+lbCluster.photos.length)%lbCluster.photos.length;
+  lbLoad();
+}
+function closeLightbox(){document.getElementById('lightbox').style.display='none';}
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('lightbox').style.display!=='flex')return;
+  if(e.key==='Escape')closeLightbox();
+  if(e.key==='ArrowLeft')lbStep(-1);
+  if(e.key==='ArrowRight')lbStep(1);
+});
+
+// ── RENDER ──────────────────────────────────────────
+function render(){
+  if(!map||!frames.length)return;
+  const f=frames[idx],N=frames.length;
+  const pts=[];for(let k=0;k<=idx;k++)pts.push([frames[k].person.lat,frames[k].person.lng]);
+  trail.setLatLngs(pts);glow.setLatLngs(pts);
+  personMarker.setLatLng([f.person.lat,f.person.lng]);
+  lug1Marker.setLatLng([f.lug_a.lat,f.lug_a.lng]);
+  lug2Marker.setLatLng([f.lug_b.lat,f.lug_b.lng]);
+  const pct=idx/Math.max(1,N-1)*100;
+  document.getElementById('fill').style.width=pct+'%';
+  document.getElementById('thumb').style.left=pct+'%';
+  document.querySelector('input[type=range]').value=idx;
+  document.querySelector('input[type=range]').max=N-1;
+  const dt=new Date(f.t);
+  const dateStr=WD[dt.getDay()]+', '+MON[dt.getMonth()]+' '+dt.getDate()+' '+dt.getFullYear();
+  document.getElementById('scrub-date').textContent=dateStr;
+  document.getElementById('scrub-city').textContent=f.person.city||'';
+  updateStats(f,dt,dateStr);
+  updateFreshnessLine();
+}
+function updateStats(f,dt,dateStr){
+  const N=frames.length,i=idx;
+  document.getElementById('current-city').textContent=(f.person.city||'').split(' · ')[0]||'En route';
+  document.getElementById('current-date').textContent=dateStr;
+  const d0=new Date(frames[0].t);d0.setHours(0,0,0,0);
+  const dayNum=Math.floor((f.t-d0.getTime())/DAY)+1;
+  document.getElementById('stat-days').textContent=dayNum;
+  document.getElementById('stat-miles').textContent=Math.round(cum[i]||0).toLocaleString();
+  const seen=new Set();for(let k=0;k<=i;k++){const c=frames[k].person.city;if(c&&c.indexOf('transit')<0)seen.add(c.split(' · ')[0]);}
+  document.getElementById('stat-cities').textContent=seen.size;
+  const prog=Math.min(100,Math.round(dayNum/TOTAL_DAYS*100));
+  drawRing(prog);
+  document.getElementById('progress-label').textContent=prog+'% of mission complete';
+  const rem=Math.max(0,TOTAL_DAYS-dayNum);
+  document.getElementById('progress-sub').textContent=rem>0?rem+' days remaining':'Mission complete!';
+  renderBattery(f.bat);
+}
+function drawRing(pct){
+  const c=document.getElementById('ring'),ctx=c.getContext('2d'),s=44,r=18,cx=22,cy=22;
+  ctx.clearRect(0,0,s,s);
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=3.5;ctx.stroke();
+  const end=-Math.PI/2+(pct/100)*Math.PI*2;
+  ctx.beginPath();ctx.arc(cx,cy,r,-Math.PI/2,end);ctx.strokeStyle=TRAIL_COLOR;ctx.lineWidth=3.5;ctx.lineCap='round';ctx.stroke();
+  ctx.fillStyle='#F4ECDF';ctx.font='bold 8px JetBrains Mono,monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(pct+'%',cx,cy);
+}
+function renderBattery(bat){
+  const BAT_PCT={0:100,1:100,2:60,3:25,4:10};
+  const tags=[
+    {label:'On-Person',pct:bat.p!=null?bat.p:BAT_PCT[bat.p_raw]||100},
+    {label:'Luggage A', pct:bat.a!=null?bat.a:BAT_PCT[bat.a_raw]||100},
+    {label:'Luggage B', pct:bat.b!=null?bat.b:BAT_PCT[bat.b_raw]||100},
+  ];
+  document.getElementById('bat-indicators').innerHTML=tags.map(t=>{
+    const p=Math.max(2,Math.round(t.pct));
+    const color=p<15?'#E2674E':p<30?'#E8B04B':'#9BC27E';
+    const msg=p<15?'⚠ Needs a new battery':p<30?'Getting low':'Good';
+    return `<div style="display:flex;align-items:center;gap:8px;">
+      <span style="font:500 12px/1 'Spline Sans',sans-serif;color:#B9AE9C;width:72px;">${t.label}</span>
+      <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,0.08);"><div style="height:100%;border-radius:2px;width:${p}%;background:${color};"></div></div>
+      <span style="font:500 10px/1 'Spline Sans',sans-serif;color:${color};width:110px;">${msg}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── PLAYBACK ────────────────────────────────────────
+function togglePlay(){
+  if(playing){clearTimeout(timer);playing=false;document.getElementById('play-btn').textContent='▶';}
+  else{if(idx>=frames.length-1)idx=0;playing=true;document.getElementById('play-btn').textContent='⏸';loop();}
+}
+function loop(){
+  if(!playing)return;
+  timer=setTimeout(()=>{
+    if(!playing)return;
+    idx++;
+    if(idx>=frames.length){playing=false;document.getElementById('play-btn').textContent='▶';idx=frames.length-1;render();return;}
+    render();loop();
+  },130/speed);
+}
+function scrub(v){clearTimeout(timer);playing=false;document.getElementById('play-btn').textContent='▶';idx=+v;render();}
+
+// ── INIT ────────────────────────────────────────────
+function init(){
+  TRAIL_COLOR=SETTINGS.trailColor||'#E8B04B';
+  MISSIONARY=SETTINGS.name||MISSION_DATA.missionary||'Our Missionary';
+  MISSION_NAME=SETTINGS.mission||'Mission';
+  TOTAL_DAYS=SETTINGS.length==='24'?730:SETTINGS.length==='custom'?(parseInt(SETTINGS.customDays)||547):547;
+  document.getElementById('name-display').textContent=MISSIONARY;
+  document.getElementById('mission-display').textContent=MISSION_NAME;
+  document.title=MISSIONARY+' — Mission Tracker';
+  cum=[0];derive();
+  initMap();
+  idx=frames.length-1;
+  document.getElementById('main-card').style.display='block';
+  document.getElementById('scrubber').style.display='block';
+  render();
+  const cur=frames[idx].person;
+  const zoom=cur.city&&cur.city.indexOf('transit')>-1?4:10;
+  map.setView([cur.lat,cur.lng],zoom);
+  document.getElementById('loading').style.display='none';
+}
+tryAutoUnlock();
+</script>
+</body>
+</html>
