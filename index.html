@@ -24,6 +24,10 @@ body{font-family:'Spline Sans',sans-serif;-webkit-font-smoothing:antialiased;}
    the real visible viewport so the play bar is always on screen. */
 #wrap{height:100vh;height:100dvh;}
 /* Her marker: white ring + dark halo reads against any satellite terrain. */
+/* Her live-position dot is decorative only — no popup, no click handler —
+   so it must never swallow clicks meant for a photo/milestone pin sitting
+   at (or near) the same coordinate. */
+.loc-dot-marker{pointer-events:none!important;}
 .pulse-dot{position:relative;width:24px;height:24px;flex:none;}
 .pulse-dot::before{content:'';position:absolute;inset:0;border-radius:50%;background:var(--c,#E8B04B);border:3.5px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,0.5),0 0 18px 5px var(--c,#E8B04B);}
 .pulse-dot::after{content:'';position:absolute;inset:-2px;border-radius:50%;border:3px solid #fff;animation:ping 2s ease-out infinite;}
@@ -375,7 +379,7 @@ function derive(){
   for(let i=1;i<frames.length;i++)cum[i]=cum[i-1]+haversine(frames[i-1].person,frames[i].person);
 }
 function pulseIcon(c){
-  return L.divIcon({className:'',html:`<div class="pulse-dot" style="--c:${c}"></div>`,iconSize:[24,24],iconAnchor:[12,12]});
+  return L.divIcon({className:'loc-dot-marker',html:`<div class="pulse-dot" style="--c:${c}"></div>`,iconSize:[24,24],iconAnchor:[12,12]});
 }
 function initMap(){
   map=L.map('map',{zoomControl:false,attributionControl:false,worldCopyJump:true,minZoom:2,maxZoom:17});
