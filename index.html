@@ -364,7 +364,10 @@ const DAY=86400000;
 let frames=[];
 let map,trail,glow,personMarker;
 let idx=0;
-let playing=false,timer=null,speed=8;
+let playing=false,timer=null;
+const PLAYBACK_MS=120000; // full mission plays back in ~2min, regardless of frame count
+const FOLLOW_ZOOM=13; // tight, street-level default; user can still zoom out manually
+let mapReady=false;
 let cum=[0];
 let TRAIL_COLOR='#E8B04B',MISSIONARY='',MISSION_NAME='',TOTAL_DAYS=547;
 const MARKER_COLOR='#E8382F'; // her dot: red — highest contrast against terrain
@@ -646,6 +649,7 @@ function render(){
   const pts=[];for(let k=0;k<=idx;k++)pts.push([frames[k].person.lat,frames[k].person.lng]);
   trail.setLatLngs(pts);glow.setLatLngs(pts);
   personMarker.setLatLng([f.person.lat,f.person.lng]);
+  if(mapReady)map.setView([f.person.lat,f.person.lng],map.getZoom(),{animate:false});
   const pct=idx/Math.max(1,N-1)*100;
   document.getElementById('fill').style.width=pct+'%';
   document.getElementById('thumb').style.left=pct+'%';
@@ -686,23 +690,31 @@ function drawRing(pct){
 // ── PLAYBACK ────────────────────────────────────────
 function togglePlay(){
   if(playing){clearTimeout(timer);playing=false;document.getElementById('play-btn').textContent='▶';}
-  else{if(idx>=frames.length-1)idx=0;playing=true;document.getElementById('play-btn').textContent='⏸';loop();}
+  else{
+    if(idx>=frames.length-1){
+      idx=0;
+      const start=frames[idx].person;
+      map.setView([start.lat,start.lng],FOLLOW_ZOOM,{animate:false});
+    }
+    playing=true;document.getElementById('play-btn').textContent='⏸';loop();
+  }
 }
 function loop(){
   if(!playing)return;
+  const delay=Math.min(300,Math.max(40,PLAYBACK_MS/frames.length));
   timer=setTimeout(()=>{
     if(!playing)return;
     idx++;
     if(idx>=frames.length){playing=false;document.getElementById('play-btn').textContent='▶';idx=frames.length-1;render();return;}
     render();loop();
-  },130/speed);
+  },delay);
 }
 function scrub(v){clearTimeout(timer);playing=false;document.getElementById('play-btn').textContent='▶';idx=+v;render();}
 function goNow(){
   clearTimeout(timer);playing=false;document.getElementById('play-btn').textContent='▶';
   idx=frames.length-1;render();
   const cur=frames[idx].person;
-  map.flyTo([cur.lat,cur.lng],10,{duration:1});
+  map.flyTo([cur.lat,cur.lng],FOLLOW_ZOOM,{duration:1});
 }
 function toggleCard(){
   const card=document.getElementById('main-card');
@@ -727,8 +739,9 @@ function init(){
   updatePhotosBtn();
   render();
   const cur=frames[idx].person;
-  const zoom=cur.city&&cur.city.indexOf('transit')>-1?4:10;
+  const zoom=cur.city&&cur.city.indexOf('transit')>-1?4:FOLLOW_ZOOM;
   map.setView([cur.lat,cur.lng],zoom);
+  mapReady=true;
   document.getElementById('loading').style.display='none';
 }
 tryAutoUnlock();
