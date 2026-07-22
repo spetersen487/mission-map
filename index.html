@@ -385,10 +385,10 @@ function pulseIcon(c){
   return L.divIcon({className:'loc-dot-marker',html:`<div class="pulse-dot" style="--c:${c}"></div>`,iconSize:[24,24],iconAnchor:[12,12]});
 }
 function initMap(){
-  map=L.map('map',{zoomControl:false,attributionControl:false,worldCopyJump:true,minZoom:2,maxZoom:17});
+  map=L.map('map',{zoomControl:false,attributionControl:false,worldCopyJump:true,minZoom:2,maxZoom:20});
   L.control.zoom({position:'bottomright'}).addTo(map);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:17}).addTo(map);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:17,opacity:0.85}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:19}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:19,opacity:0.85}).addTo(map);
   glow=L.polyline([],{color:TRAIL_COLOR,weight:9,opacity:0.16,lineCap:'round',lineJoin:'round'}).addTo(map);
   trail=L.polyline([],{color:TRAIL_COLOR,weight:2.5,opacity:0.95,lineCap:'round',lineJoin:'round'}).addTo(map);
   const f0=frames[0];
