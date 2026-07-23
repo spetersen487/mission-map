@@ -646,7 +646,11 @@ document.addEventListener('keydown',e=>{
 function render(){
   if(!map||!frames.length)return;
   const f=frames[idx],N=frames.length;
-  const pts=[];for(let k=0;k<=idx;k++)pts.push([frames[k].person.lat,frames[k].person.lng]);
+  const pts=[[frames[0].person.lat,frames[0].person.lng]];
+  for(let k=1;k<=idx;k++){
+    if(frames[k].seg&&frames[k].seg.length)for(const p of frames[k].seg)pts.push(p);
+    else pts.push([frames[k].person.lat,frames[k].person.lng]);
+  }
   trail.setLatLngs(pts);glow.setLatLngs(pts);
   personMarker.setLatLng([f.person.lat,f.person.lng]);
   if(mapReady)map.setView([f.person.lat,f.person.lng],map.getZoom(),{animate:false});
