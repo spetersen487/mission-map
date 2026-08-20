@@ -138,7 +138,7 @@ button{touch-action:manipulation;}
 
   <!-- MAIN CARD -->
   <div id="main-card" class="card" style="position:absolute;top:20px;left:20px;z-index:4;width:320px;padding:20px 22px;display:none;">
-    <div style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.2em;text-transform:uppercase;color:#C9A24B;">Following Her Mission ✦</div>
+    <div id="lbl-following" style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.2em;text-transform:uppercase;color:#C9A24B;">Following Her Mission ✦</div>
     <div class="serif" id="name-display" style="font-size:34px;line-height:1.05;color:#F4ECDF;margin-top:10px;"></div>
     <div style="font-size:17px;color:#C9A24B;margin-top:4px;font-weight:500;" id="current-city">—</div>
     <div style="font-size:13px;color:#9A9080;margin-top:2px;" id="mission-display"></div>
@@ -192,7 +192,7 @@ button{touch-action:manipulation;}
         <div class="serif" id="scrub-date" style="font-size:16px;color:#F4ECDF;white-space:nowrap;">—</div>
         <div style="font:400 11px/1.3 'Spline Sans',sans-serif;color:#8E8576;margin-top:2px;" id="scrub-city">—</div>
       </div>
-      <button onclick="goNow()" title="Jump to her latest position"
+      <button id="btn-now" onclick="goNow()" title="Jump to her latest position"
         style="flex:none;padding:10px 13px;border-radius:11px;border:1px solid rgba(232,176,75,0.4);background:rgba(232,176,75,0.12);color:#E8B04B;cursor:pointer;font:600 11px 'JetBrains Mono',monospace;">⦿ NOW</button>
     </div>
   </div>
@@ -203,7 +203,7 @@ button{touch-action:manipulation;}
   <!-- FULL-SCREEN PHOTO GALLERY -->
   <div id="gallery">
     <div id="gallery-head">
-      <div class="serif" style="font-size:22px;color:#F4ECDF;">Her Photos</div>
+      <div class="serif" id="lbl-her-photos" style="font-size:22px;color:#F4ECDF;">Her Photos</div>
       <button class="lb-btn" onclick="closeGallery()" style="font-size:16px;padding:12px 20px;">✕ Close</button>
     </div>
     <div id="gallery-body"></div>
@@ -229,7 +229,7 @@ button{touch-action:manipulation;}
   <div id="gate" style="position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0d0b09;gap:0;padding:24px;">
     <div class="card" style="width:min(400px,92vw);padding:32px 30px;text-align:center;">
       <div style="font:600 10px/1 'JetBrains Mono',monospace;letter-spacing:0.2em;text-transform:uppercase;color:#C9A24B;">Mission Tracker ✦</div>
-      <div class="serif" style="font-size:26px;color:#F4ECDF;margin-top:12px;">Follow Her Journey</div>
+      <div class="serif" style="font-size:26px;color:#F4ECDF;margin-top:12px;">Follow Their Journey</div>
       <div style="font:400 13px/1.5 'Spline Sans',sans-serif;color:#8E8576;margin-top:10px;">Enter the family password to open the live map. You only need to do this once on each device.</div>
       <input id="gate-pass" type="password" placeholder="Family password" autocomplete="current-password"
         style="margin-top:18px;width:100%;padding:13px 14px;border-radius:12px;border:1px solid rgba(214,188,140,0.25);background:rgba(255,255,255,0.05);color:#F4ECDF;font:500 16px 'Spline Sans',sans-serif;outline:none;text-align:center;"
@@ -243,7 +243,7 @@ button{touch-action:manipulation;}
   <!-- LOADING -->
   <div id="loading" style="position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;background:#0d0b09;color:#B9AE9C;gap:16px;">
     <div style="width:38px;height:38px;border-radius:50%;border:3px solid rgba(232,176,75,0.2);border-top-color:#E8B04B;animation:spin 0.9s linear infinite;"></div>
-    <div style="font:500 14px/1 'Spline Sans',sans-serif;letter-spacing:0.02em;">Loading her journey…</div>
+    <div id="lbl-loading" style="font:500 14px/1 'Spline Sans',sans-serif;letter-spacing:0.02em;">Loading her journey…</div>
   </div>
 </div>
 
@@ -254,6 +254,29 @@ button{touch-action:manipulation;}
 // Nothing sensitive lives in this file — it's just the viewer shell.
 let cryptoKey=null, META=null;
 let MISSION_DATA={}, MILESTONES=[], SETTINGS={}, CLUSTERS=[], PHOTO_MAP={};
+
+// Pronouns/title follow the Mission Length setting (18mo='Sister'->she/her,
+// 24mo='Elder'->he/him) instead of being hardcoded — a Custom-length mission
+// carries no gender signal, so it falls back to a neutral title/pronoun set.
+const PRONOUNS={
+  sister:{title:'Sister',subject:'she',Subject:'She',object:'her',possessive:'her',Possessive:'Her',possessivePronoun:'hers',reflexive:'herself'},
+  elder:{title:'Elder',subject:'he',Subject:'He',object:'him',possessive:'his',Possessive:'His',possessivePronoun:'his',reflexive:'himself'},
+  neutral:{title:'Missionary',subject:'they',Subject:'They',object:'them',possessive:'their',Possessive:'Their',possessivePronoun:'theirs',reflexive:'themselves'},
+};
+let PN=PRONOUNS.neutral;
+function computePronouns(){
+  PN=SETTINGS.length==='18'?PRONOUNS.sister:SETTINGS.length==='24'?PRONOUNS.elder:PRONOUNS.neutral;
+}
+function applyPronounsToUI(){
+  const following=document.getElementById('lbl-following');
+  if(following)following.textContent='Following '+PN.Possessive+' Mission ✦';
+  const replay=document.getElementById('replay-label');
+  if(replay)replay.textContent='Replay '+PN.Possessive+' Journey';
+  const nowBtn=document.getElementById('btn-now');
+  if(nowBtn)nowBtn.title='Jump to '+PN.possessive+' latest position';
+  const photosHead=document.getElementById('lbl-her-photos');
+  if(photosHead)photosHead.textContent=PN.Possessive+' Photos';
+}
 
 const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 
@@ -313,6 +336,9 @@ function bootFromPayload(payload){
   SETTINGS=payload.settings||{};
   CLUSTERS=payload.clusters||[];
   PHOTO_MAP=payload.photoMap||{};
+  computePronouns();
+  const loadingLbl=document.getElementById('lbl-loading');
+  if(loadingLbl)loadingLbl.textContent='Loading '+PN.possessive+' journey…';
   document.getElementById('gate').style.display='none';
   document.getElementById('loading').style.display='flex';
   frames=MISSION_DATA.frames||[];
@@ -338,6 +364,7 @@ function startRefreshLoop(){
         const wasAtEnd=idx>=frames.length-1;
         MISSION_DATA=payload.mission||{};MILESTONES=payload.milestones||[];
         SETTINGS=payload.settings||{};CLUSTERS=payload.clusters||[];PHOTO_MAP=payload.photoMap||{};
+        computePronouns();applyPronounsToUI();
         frames=MISSION_DATA.frames||[];
         cum=[0];derive();
         if(wasAtEnd)idx=frames.length-1;else idx=Math.min(idx,frames.length-1);
@@ -465,7 +492,7 @@ function openGallery(){
       <div class="gal-grid">${c.photos.map((p,pi)=>
         `<img alt="photo" loading="lazy" data-path="${p.path}" onclick="galOpen(event,${ci},${pi})">`).join('')}</div>
     </div>`;
-  }).join('')||'<div style="text-align:center;color:#8E8576;padding:50px 20px;font:400 15px \'Spline Sans\',sans-serif;">No photos yet — they\'ll appear here as she shares them.</div>';
+  }).join('')||'<div style="text-align:center;color:#8E8576;padding:50px 20px;font:400 15px \'Spline Sans\',sans-serif;">No photos yet — they\'ll appear here as '+PN.subject+' shares them.</div>';
   document.getElementById('gallery').classList.add('open');
   galFillThumbs();
 }
@@ -728,6 +755,8 @@ function toggleCard(){
 
 // ── INIT ────────────────────────────────────────────
 function init(){
+  computePronouns();
+  applyPronounsToUI();
   TRAIL_COLOR=SETTINGS.trailColor||'#E8B04B';
   MISSIONARY=SETTINGS.name||MISSION_DATA.missionary||'Our Missionary';
   MISSION_NAME=SETTINGS.mission||'Mission';
