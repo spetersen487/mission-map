@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Home Screen app: iPhones only allow website alerts for sites added to the Home Screen -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mission">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d0b09">
 <title>Mission Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Spline+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -85,6 +93,22 @@ button{touch-action:manipulation;}
   font:600 14px 'Spline Sans',sans-serif;cursor:pointer;
   box-shadow:0 8px 26px rgba(0,0,0,0.5);
 }
+/* Photo alerts sheet */
+#alerts-sheet{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(5,4,2,0.7);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+#alerts-sheet.open{display:flex;}
+#alerts-card{width:min(440px,100%);max-height:calc(100dvh - 36px);overflow-y:auto;padding:24px 22px 22px;}
+#alerts-body{font:400 16px/1.55 'Spline Sans',sans-serif;color:#D4C9B5;margin-top:12px;}
+#alerts-body p{margin-top:10px;}
+#alerts-body ol{margin:10px 0 0 22px;}
+#alerts-body li{margin-top:8px;}
+#alerts-body b{color:#F4ECDF;}
+#alerts-body .ok{color:#A8D08D;font-weight:600;}
+#alerts-body textarea{width:100%;height:92px;margin-top:12px;padding:10px;border-radius:10px;border:1px solid rgba(214,188,140,0.3);background:rgba(0,0,0,0.35);color:#F4ECDF;font:400 12px/1.4 'JetBrains Mono',monospace;resize:none;word-break:break-all;}
+.alerts-primary{display:block;width:100%;margin-top:14px;padding:15px;border-radius:13px;border:none;cursor:pointer;background:linear-gradient(158deg,#E8B04B,#C9842E);color:#1a1206;font:600 17px 'Spline Sans',sans-serif;}
+.alerts-secondary{display:block;width:100%;margin-top:10px;padding:13px;border-radius:13px;cursor:pointer;border:1px solid rgba(214,188,140,0.3);background:rgba(255,255,255,0.05);color:#F4ECDF;font:500 16px 'Spline Sans',sans-serif;}
+.alerts-quiet{display:block;margin:16px auto 0;background:none;border:none;color:#8E8576;font:400 14px 'Spline Sans',sans-serif;text-decoration:underline;cursor:pointer;}
+#alerts-link{display:block;width:100%;margin-top:14px;padding:11px;border-radius:12px;border:1px solid rgba(232,176,75,0.4);background:rgba(232,176,75,0.1);color:#E8B04B;cursor:pointer;font:600 15px 'Spline Sans',sans-serif;}
+#updated-line{margin-top:12px;font:400 13px/1.3 'Spline Sans',sans-serif;color:#9A9080;text-align:center;}
 #gallery{position:fixed;inset:0;z-index:40;display:none;background:#0d0b09;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 #gallery.open{display:block;}
 #gallery-head{
@@ -171,6 +195,8 @@ button{touch-action:manipulation;}
         <div class="mono" style="font-size:8.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6E6860;margin-top:4px;">days in</div>
       </div>
     </div>
+    <div id="updated-line"></div>
+    <button id="alerts-link" onclick="openAlerts()">🔔 Photo alerts</button>
 
     </div><!-- /card-details -->
   </div>
@@ -208,9 +234,23 @@ button{touch-action:manipulation;}
   <div id="gallery">
     <div id="gallery-head">
       <div class="serif" id="lbl-her-photos" style="font-size:22px;color:#F4ECDF;">Her Photos</div>
-      <button class="lb-btn" onclick="closeGallery()" style="font-size:16px;padding:12px 20px;">✕ Close</button>
+      <div style="display:flex;gap:8px;">
+        <button class="lb-btn" onclick="openAlerts()" style="font-size:16px;padding:12px 16px;" title="Get an alert when new photos arrive">🔔 Alerts</button>
+        <button class="lb-btn" onclick="closeGallery()" style="font-size:16px;padding:12px 20px;">✕ Close</button>
+      </div>
     </div>
     <div id="gallery-body"></div>
+  </div>
+
+  <!-- PHOTO ALERTS -->
+  <div id="alerts-sheet" onclick="if(event.target===this)closeAlerts()">
+    <div id="alerts-card" class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div class="serif" style="font-size:24px;color:#F4ECDF;">🔔 Photo alerts</div>
+        <button class="lb-btn" onclick="closeAlerts()" style="font-size:15px;padding:9px 14px;">✕</button>
+      </div>
+      <div id="alerts-body"></div>
+    </div>
   </div>
 
   <!-- PHOTO LIGHTBOX -->
@@ -356,12 +396,20 @@ function bootFromPayload(payload){
 }
 
 // Poll meta.json; when the publisher stamps a new update, refetch + re-render.
-let lastUpdated=null;
+let lastUpdated=null,checkingUpdate=false;
 function startRefreshLoop(){
   lastUpdated=META&&META.updated;
-  setInterval(async()=>{
+  setInterval(checkForUpdate,10*60*1000);
+  // Coming back to the tab/app (e.g. from a photo alert) checks right away
+  // instead of waiting up to 10 minutes.
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkForUpdate();});
+}
+async function checkForUpdate(){
+  if(!booted||checkingUpdate)return;
+  checkingUpdate=true;
     try{
       const m=await fetchJSON('meta.json');
+      if(m.vapid)META.vapid=m.vapid;
       if(m.updated&&m.updated!==lastUpdated){
         lastUpdated=m.updated;META=m;
         const payload=await decryptJSON(await fetchJSON('data.enc'));
@@ -378,7 +426,7 @@ function startRefreshLoop(){
       }
       updateFreshnessLine();
     }catch(e){/* offline — try again next tick */}
-  },10*60*1000);
+    finally{checkingUpdate=false;}
 }
 function updateFreshnessLine(){
   const el=document.getElementById('updated-line');
@@ -834,6 +882,122 @@ function init(){
   map.setView([cur.lat,cur.lng],zoom);
   mapReady=true;
   document.getElementById('loading').style.display='none';
+  if(ALERTS_SUPPORTED)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if(location.hash==='#photos'){
+    history.replaceState(null,'',location.pathname+location.search);
+    if(CLUSTERS.length)openGallery();
+  }
+}
+
+// ── PHOTO ALERTS (web push) ─────────────────────────
+// The Mac (push_alerts.py) sends encrypted alerts straight to this device's
+// browser push service. The site has no server, so after the device
+// subscribes it shows a code to paste into the dashboard's 🔔 Alerts panel.
+const ALERTS_SUPPORTED=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+const IS_IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const IS_STANDALONE=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+if(ALERTS_SUPPORTED){
+  navigator.serviceWorker.addEventListener('message',e=>{
+    if(e.data&&e.data.type==='open-photos')checkForUpdate().then(()=>{closeAlerts();if(CLUSTERS.length)openGallery();});
+  });
+}
+function b64uToBytes(s){s=s.replace(/-/g,'+').replace(/_/g,'/');s+='='.repeat((4-s.length%4)%4);return Uint8Array.from(atob(s),c=>c.charCodeAt(0));}
+function bytesToB64u(buf){let bin='';new Uint8Array(buf).forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function alertCode(sub){
+  const j=sub.toJSON();
+  return 'MT1.'+bytesToB64u(new TextEncoder().encode(JSON.stringify({e:j.endpoint,k:j.keys.p256dh,a:j.keys.auth})));
+}
+function subMatchesKey(sub){
+  try{
+    const k=sub.options&&sub.options.applicationServerKey;
+    return !k||bytesToB64u(k)===META.vapid;
+  }catch(e){return true;}
+}
+async function swRegistration(){
+  await navigator.serviceWorker.register('sw.js');
+  return navigator.serviceWorker.ready;
+}
+function openAlerts(){document.getElementById('alerts-sheet').classList.add('open');renderAlerts();}
+function closeAlerts(){document.getElementById('alerts-sheet').classList.remove('open');}
+async function renderAlerts(){
+  const box=document.getElementById('alerts-body');
+  const who=MISSIONARY&&MISSIONARY!=='Our Missionary'?MISSIONARY:PN.subject;
+  if(!META||!META.vapid){
+    box.innerHTML='<p>Alerts aren’t switched on yet. They’ll start working once Mission Tracker on the home Mac has been updated. Check back soon!</p>';
+    return;
+  }
+  if(IS_IOS&&!IS_STANDALONE){
+    box.innerHTML=`<p>Get a notification on this iPhone whenever ${who} shares new photos.</p>
+      <p>Apple only allows alerts from sites on your Home Screen, so first:</p>
+      <ol>
+        <li>Tap the <b>Share</b> button <span style="white-space:nowrap">(the square with an arrow ⬆︎)</span> at the bottom of Safari.</li>
+        <li>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</li>
+        <li>Open <b>Mission</b> from your Home Screen and enter the family password one more time.</li>
+        <li>Tap <b>🔔 Photo alerts</b> again there to finish.</li>
+      </ol>`;
+    return;
+  }
+  if(!ALERTS_SUPPORTED){
+    box.innerHTML='<p>This browser can’t show alerts. On a computer, try Safari, Chrome or Edge. On an iPhone, use Safari and add this site to your Home Screen.</p>';
+    return;
+  }
+  if(Notification.permission==='denied'){
+    box.innerHTML=IS_IOS
+      ?'<p>Alerts are turned off for this app. To turn them on: iPhone <b>Settings → Notifications → Mission</b> → <b>Allow Notifications</b>. Then come back and tap 🔔 again.</p>'
+      :'<p>Alerts are blocked for this site in your browser. Click the icon left of the web address, allow <b>Notifications</b>, then reload the page and tap 🔔 again.</p>';
+    return;
+  }
+  let sub=null;
+  if(Notification.permission==='granted'){
+    try{const reg=await swRegistration();sub=await reg.pushManager.getSubscription();}catch(e){}
+  }
+  if(sub&&subMatchesKey(sub)){showAlertCode(sub,true);return;}
+  box.innerHTML=`<p>Get a notification on this ${IS_IOS?'iPhone':'device'} whenever ${who} shares new photos. Tap it to go straight to them.</p>
+    <button class="alerts-primary" onclick="turnOnAlerts(this)">Turn on photo alerts</button>`;
+}
+async function turnOnAlerts(btn){
+  // Ask first, straight from the tap: Safari only shows the prompt for a direct user action.
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted'){renderAlerts();return;}
+  if(btn){btn.disabled=true;btn.textContent='Turning on…';}
+  try{
+    const reg=await swRegistration();
+    let sub=await reg.pushManager.getSubscription();
+    if(sub&&!subMatchesKey(sub)){await sub.unsubscribe();sub=null;}
+    if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64uToBytes(META.vapid)});
+    showAlertCode(sub,false);
+  }catch(e){
+    document.getElementById('alerts-body').innerHTML=`<p>Couldn’t turn on alerts on this device (${String(e&&e.message||e).slice(0,120)}). Please try again in a moment.</p>
+      <button class="alerts-secondary" onclick="renderAlerts()">Try again</button>`;
+  }
+}
+function showAlertCode(sub,already){
+  const code=alertCode(sub);
+  document.getElementById('alerts-body').innerHTML=`
+    <div class="ok">✓ ${already?'Alerts are allowed on this device.':'Alerts are allowed!'}</div>
+    <p><b>One last step:</b> the home Mac needs this device’s code. Copy it, then paste it into <b>Mission Tracker → 🔔 Alerts → Add a device</b> on the Mac.</p>
+    <p style="font-size:14px;color:#9A9080;">On your own iPhone and Mac, copy here and paste there. Otherwise, text the code to whoever runs the Mac. You only do this once per device.</p>
+    <textarea id="alert-code" readonly onclick="this.select()">${code}</textarea>
+    <button class="alerts-primary" id="alert-copy" onclick="copyAlertCode()">Copy code</button>
+    ${navigator.share?'<button class="alerts-secondary" onclick="shareAlertCode()">Send it…</button>':''}
+    <button class="alerts-quiet" onclick="turnOffAlerts()">Turn off alerts on this device</button>`;
+}
+async function copyAlertCode(){
+  const ta=document.getElementById('alert-code'),btn=document.getElementById('alert-copy');
+  try{await navigator.clipboard.writeText(ta.value);}
+  catch(e){ta.select();document.execCommand('copy');}
+  btn.textContent='✓ Copied';setTimeout(()=>{btn.textContent='Copy code';},2500);
+}
+function shareAlertCode(){
+  const code=document.getElementById('alert-code').value;
+  navigator.share({text:code}).catch(()=>{});
+}
+async function turnOffAlerts(){
+  try{
+    const reg=await swRegistration();const sub=await reg.pushManager.getSubscription();
+    if(sub)await sub.unsubscribe();
+  }catch(e){}
+  document.getElementById('alerts-body').innerHTML='<p>Alerts are off on this device. The home Mac will notice the next time it tries to send one. You can turn them back on any time.</p><button class="alerts-secondary" onclick="renderAlerts()">Turn them back on</button>';
 }
 tryAutoUnlock();
 </script>
